@@ -1,0 +1,15 @@
+{
+	"alias": "rdns",
+	"base-path": "./",
+	"chmod": "0755",
+	"files": ["main.php"],
+	"main": "main.php",
+	"finder": [
+		{
+			"name": "*.php",
+			"in": "vendor"
+		}
+	],
+	"output": "rdns.phar",
+	"stub": true
+}

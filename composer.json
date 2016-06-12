@@ -1,0 +1,8 @@
+{
+    "require": {
+        "react/dns": "~0.4.0",
+        "react/datagram": "^1.1",
+        "react/socket-client": "^0.5",
+        "react/http-client": "^0.4"
+    }
+}
