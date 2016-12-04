@@ -5,6 +5,67 @@ require_once 'vendor/autoload.php';
 
 use React\Dns\Protocol\Parser;
 use React\Dns\Model\Message;
+use React\Promise\FulfilledPromise as Fulfilled;
+use React\Promise\RejectedPromise as Rejected;
+
+$listen = '0.0.0.0:53';
+$upstream = '8.8.8.8';
+$tld = 'dkr';
+
+if (isset($_ENV['LISTEN']))
+{
+	$listen = $_ENV['LISTEN'];
+}
+
+if (isset($_ENV['UPSTREAM']))
+{
+	$upstream = $_ENV['UPSTREAM'];
+}
+
+if (isset($_ENV['TLD']))
+{
+	$tld = $_ENV['TLD'];
+}
+
+
+$args = getopt("t::u::l::", [
+	"tld:",
+	"listen:",
+	"upstream:"
+]);
+
+if (isset($args['t']))
+{
+	$tld = $args['t'];
+}
+
+if (isset($args['u']))
+{
+	$upstream = $args['u'];
+}
+
+if (isset($args['l']))
+{
+	$listen = $args['listen'];
+}
+
+if (isset($args['tld']))
+{
+	$tld = $args['tld'];
+}
+
+if (isset($args['upstream']))
+{
+	$upstream = $args['upstream'];
+}
+
+if (isset($args['listen']))
+{
+	$listen = $args['listen'];
+}
+
+
+print "TLD = {$tld} LISTEN = {$listen} UPSTREAM = {$upstream}\n";
 
 
 $loop		= React\EventLoop\Factory::create();
@@ -22,6 +83,8 @@ class BinaryDumper extends React\Dns\Protocol\BinaryDumper
 	private function answerToBinary(array $answers)
 	{
 		$data = "";
+		print "ANSWERS:\n";
+		print_r($answers);
 		
 		foreach ($answers as $answer)
 		{
@@ -105,7 +168,7 @@ global $dockers;
 $dockers = [];
 
 
-$checkdocker = function() use ($client)
+$checkdocker = function() use ($client, $tld)
 {
 	$request= $client->request(
 		'GET',
@@ -113,7 +176,7 @@ $checkdocker = function() use ($client)
 	);
 	
 	
-	$request->on('response', function($response) {
+	$request->on('response', function($response) use ($tld) {
 		
 		$containers = "";
 		
@@ -132,7 +195,7 @@ $checkdocker = function() use ($client)
 			
 			foreach ($containers as $container)
 			{
-				$name	= substr($container->Names[0], 1) . '.dkr';
+				$name	= substr($container->Names[0], 1) . '.' . $tld;
 				$ip	= $container->NetworkSettings->Networks->bridge->IPAddress;
 				
 				$hosts[$name] = $ip;
@@ -150,10 +213,12 @@ $checkdocker = function() use ($client)
 $loop->nextTick($checkdocker);
 $loop->addPeriodicTimer(30, $checkdocker);
 
+$dns = (new React\Dns\Resolver\Factory())
+	->createCached($upstream, $loop, new React\Cache\ArrayCache());
 
-$udpfactory->createServer('0.0.0.0:53')->then(function(React\Datagram\Socket $server) {
+$udpfactory->createServer($listen)->then(function(React\Datagram\Socket $server) use ($dns) {
 	
-	$server->on('message', function($message, $address, $server) {
+	$server->on('message', function($message, $address, $server) use ($dns) {
 		
 		global $dockers;
 		
@@ -197,24 +262,49 @@ $udpfactory->createServer('0.0.0.0:53')->then(function(React\Datagram\Socket $se
 			{
 				if (isset($dockers[$question['name']]))
 				{
-					$response->answers[] = [
+					$resolved[] = new Fulfilled([
 						'name'		=> $question['name'],
 						'type'		=> Message::TYPE_A,
 						'class'		=> Message::CLASS_IN,
 						// cache for 30 seconds
 						'ttl'		=> 30,
 						'data'		=> $dockers[$question['name']]
-					];
+					]);
 				}
 				else
 				{
-					$response->header->set('rcode', Message::RCODE_NAME_ERROR);
+					print "UPSTREAM: {$question['name']} ...\n";
+					
+					$resolved[] = $dns->resolve($question['name'])
+						->then(function($ip) use ($question, $response) {
+							print "RESOLVED: {$ip}\n";
+							return new Fulfilled([
+								'name'		=> $question['name'],
+								'type'		=> Message::TYPE_A,
+								'class'		=> Message::CLASS_IN,
+								// cache for 30 seconds
+								'ttl'		=> 1800,
+								'data'		=> $ip
+							]);
+						});
 				}
 			}
 		}
 		
-		$response->prepare();
-		$server->send($dumper->toBinary($response), $address);
+		\React\Promise\all($resolved)
+			->then(function($answers) use ($response, $server, $dumper, $address) {
+				print "ANSWERS:\n";
+				print_r($answers);
+				
+				$response->answers = $answers;
+				$response->prepare();
+				$server->send($dumper->toBinary($response), $address);
+			})
+			->otherwise(function() use ($response, $server, $dumper, $address) {
+				$response->header->set('rcode', Message::RCODE_NAME_ERROR);
+				$response->prepare();
+				$server->send($dumper->toBinary($response), $address);
+			});
 	});
 	
 });
