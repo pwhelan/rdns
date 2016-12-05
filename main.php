@@ -185,13 +185,12 @@ $checkdocker = function() use ($client, $tld)
 			$containers .= $data;
 		});
 		
-		$response->on('end', function() use (&$containers)  {
+		$response->on('end', function() use (&$containers, $tld)  {
 			
 			global $dockers;
 			$hosts = [];
 			
 			$containers = json_decode($containers);
-			
 			
 			foreach ($containers as $container)
 			{
