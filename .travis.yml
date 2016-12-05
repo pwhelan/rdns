@@ -14,5 +14,5 @@ branches:
   - release
 
 script:
-  - ./box2.phar build
+  - ./box.phar build
   - docker build -t rdns:$TRAVIS_TAG .
