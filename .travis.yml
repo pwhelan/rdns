@@ -18,4 +18,4 @@ branches:
 
 script:
   - ./box.phar build
-  - docker build . -t pwhelan/rdns:$TRAVIS_TAG
+  - docker build . -t pwhelan/rdns
