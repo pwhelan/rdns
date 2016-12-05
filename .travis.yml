@@ -1,0 +1,18 @@
+sudo: required
+
+language: php
+
+services:
+  - docker
+
+install:
+  - curl -LSs https://box-project.github.io/box2/installer.php | php
+
+branches:
+  only:
+  - master
+  - release
+
+script:
+  - ./box2.phar build
+  - docker build -t rdns:$TRAVIS_TAG .
