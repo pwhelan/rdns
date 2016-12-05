@@ -16,4 +16,4 @@ branches:
 
 script:
   - ./box.phar build
-  - docker build -t rdns:$TRAVIS_TAG .
+  - docker build . -t rdns:$TRAVIS_TAG
