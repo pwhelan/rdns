@@ -6,6 +6,7 @@ services:
   - docker
 
 install:
+  - composer install
   - curl -LSs https://box-project.github.io/box2/installer.php | php
 
 branches:
