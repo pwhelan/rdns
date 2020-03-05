@@ -195,9 +195,16 @@ $checkdocker = function() use ($client, $tld)
 			foreach ($containers as $container)
 			{
 				$name	= substr($container->Names[0], 1) . '.' . $tld;
-				$ip	= $container->NetworkSettings->Networks->bridge->IPAddress;
 				
-				$hosts[$name] = $ip;
+				if (isset($container->NetworkSettings) && 
+					isset($container->NetworkSettings->Networks) &&
+					isset($container->NetworkSettings->Networks->bridge) &&
+					isset($container->NetworkSettings->Networks->bridge->IPAddress))
+				{
+					$ip	= $container->NetworkSettings->Networks->bridge->IPAddress;
+					print "hosts[$name] = $ip\n";
+					$hosts[$name] = $ip;
+				}
 			}
 			
 			$dockers = $hosts;
@@ -221,7 +228,7 @@ $udpfactory->createServer($listen)->then(function(React\Datagram\Socket $server)
 		
 		global $dockers;
 		
-		
+		$resolved	= [];
 		$dumper		= new BinaryDumper;
 		$request	= new Message();
 		$parser 	= new Parser();
@@ -308,7 +315,7 @@ $udpfactory->createServer($listen)->then(function(React\Datagram\Socket $server)
 	
 });
 
-ini_set('memory_limit', '2M');
+//ini_set('memory_limit', '');
 gc_enable();
 
 $loop->addPeriodicTimer(360, function() {
